@@ -23,17 +23,22 @@
         <dependency>
             <groupId>io.grpc</groupId>
             <artifactId>grpc-netty</artifactId>
-            <version>1.60.0</version>
+            <version>1.36.0</version>
         </dependency>
         <dependency>
             <groupId>io.grpc</groupId>
             <artifactId>grpc-protobuf</artifactId>
-            <version>1.60.0</version>
+            <version>1.36.0</version>
         </dependency>
         <dependency>
             <groupId>io.grpc</groupId>
             <artifactId>grpc-stub</artifactId>
-            <version>1.60.0</version>
+            <version>1.36.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.iit.ds.coursework.ayesh.resources</groupId>
+            <artifactId>SharedResources</artifactId>
+            <version>1.0-SNAPSHOT</version>
         </dependency>
     </dependencies>
 
@@ -47,23 +52,11 @@
         </extensions>
         <plugins>
             <plugin>
-                <groupId>org.xolstice.maven.plugins</groupId>
-                <artifactId>protobuf-maven-plugin</artifactId>
-                <version>0.6.1</version>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
-                    <protocArtifact>com.google.protobuf:protoc:3.14.0:exe:osx-x86_64</protocArtifact>
-                    <pluginId>grpc-java</pluginId>
-                    <pluginArtifact>io.grpc:protoc-gen-grpc-java:1.36.0:exe:osx-x86_64</pluginArtifact>
-                    <protoSourceRoot>src/main/resources</protoSourceRoot>
+                    <release>11</release>
                 </configuration>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>compile</goal>
-                            <goal>compile-custom</goal>
-                        </goals>
-                    </execution>
-                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
