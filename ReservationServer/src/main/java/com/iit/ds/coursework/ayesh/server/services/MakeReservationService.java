@@ -22,13 +22,14 @@ public class MakeReservationService extends PlaceReservationServiceGrpc.PlaceRes
             itemId =request.getItemId();
             custId = request.getCustomerId();
             date = request.getReservationDate();
-            System.out.println("Placing reservation..... - Date: "+date+ " CustomerID: "+custId);
+            System.out.println("Placing reservation..... - Date: "+date+ " CustomerID: "+custId+" ItemId: "+itemId);
             server.makeReservation(itemId,custId,date);
             response = populateResponse(true,"Placing Reservation Has Successes!",date);
             System.out.println("Reservation has placed! - Date: "+date+ " CustomerID: "+custId);
         }catch (Exception e){
             System.out.println("Placing reservation has  Failed! | "+ e.getMessage());
             response = populateResponse(false, e.getMessage(),request.getReservationDate());
+            e.printStackTrace();
         }
         responseObserver.onNext(response);
         responseObserver.onCompleted();
@@ -37,7 +38,7 @@ public class MakeReservationService extends PlaceReservationServiceGrpc.PlaceRes
     private ReservationResponse populateResponse(boolean status, String description, String resID) {
         return ReservationResponse.newBuilder()
                 .setStatus(status)
-                .setDescription(description)
+                .setDescription(description != null? description : "")
                 .setResId(resID)
                 .build();
     }

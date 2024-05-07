@@ -1,0 +1,1 @@
+java -jar ./ReservationServer/target/ReservationServer-1.0-SNAPSHOT-jar-with-dependencies.jar localhost 11436

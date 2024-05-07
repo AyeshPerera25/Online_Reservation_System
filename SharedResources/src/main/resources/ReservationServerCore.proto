@@ -7,6 +7,7 @@ message Reservation{
   string id =1;
   string custId = 2;
   string description = 3;
+  string date = 4;
 }
 
 // For Seller's Advertisement
@@ -58,8 +59,9 @@ message DeleteItemRequest {
 }
 
 message DeleteItemResponse {
-  bool status = 1;
-  string description = 2;
+  string id = 1;
+  bool status = 2;
+  string description = 3;
 }
 
 // Customer's Services Request/Response wrappers

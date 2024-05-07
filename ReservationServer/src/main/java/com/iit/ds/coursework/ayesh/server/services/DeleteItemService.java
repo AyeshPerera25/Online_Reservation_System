@@ -23,18 +23,19 @@ public class DeleteItemService extends DeleteItemServiceGrpc.DeleteItemServiceIm
             itemID = request.getId();
             System.out.println("Deleting listed item on the system...  Item ID: "+ itemID);
             server.deleteItemInDB(itemID);
-            response = populateResponse(true, "Delete Item Has Successes!");
+            response = populateResponse(true, "Delete Item Has Successes!",itemID);
             System.out.println(" Item has deleted on the system! Item ID: "+ itemID);
         }catch (Exception e){
             System.out.println("Delete items has Failed! | "+ e.getMessage());
-            response = populateResponse(false, e.getMessage());
+            response = populateResponse(false, e.getMessage(),request.getId());
         }
         responseObserver.onNext(response);
         responseObserver.onCompleted();
     }
 
-    private DeleteItemResponse populateResponse(boolean status, String description) {
+    private DeleteItemResponse populateResponse(boolean status, String description, String itemId) {
         return DeleteItemResponse.newBuilder()
+                .setId(itemId)
                 .setStatus(status)
                 .setDescription(description)
                 .build();

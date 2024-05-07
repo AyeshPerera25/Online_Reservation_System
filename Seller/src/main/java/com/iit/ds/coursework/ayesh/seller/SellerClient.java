@@ -57,14 +57,13 @@ public class SellerClient {
     private void initializeConnection() {
         System.out.println("Initializing Connecting to server at " + serverIP + ":" + serverPort);
         channel = ManagedChannelBuilder
-                .forAddress("localhost", 11436)
+                .forAddress(serverIP, serverPort)
                 .usePlaintext()
                 .build();
         addItemServiceBlockingStub = AddItemServiceGrpc.newBlockingStub(channel);
         deleteItemServiceBlockingStub = DeleteItemServiceGrpc.newBlockingStub(channel);
         getMyItemServiceBlockingStub = GetMyItemServiceGrpc.newBlockingStub(channel);
         updateItemServiceBlockingStub = UpdateItemServiceGrpc.newBlockingStub(channel);
-
     }
 
     private void processUserLogin() {
@@ -113,7 +112,7 @@ public class SellerClient {
 
     private void loadSellerPortal() {
         int service;
-        System.out.println("\n-------- Welcome to the seller portal " + clientName + " (Id: " + clientID + " ) --------[Enter 'exit' to exit]");
+        System.out.println("\n-------- Welcome to The Seller Portal " + clientName + " (Id: " + clientID + " ) --------[Enter 'exit' to exit]");
         service = loadSellerServices();
         processUserServiceRequest(service);
     }
@@ -125,9 +124,10 @@ public class SellerClient {
         System.out.println("2 - Add Item");
         System.out.println("3 - Update Item");
         System.out.println("4 - Delete Item");
+        System.out.print("Enter Service No: ");
         action = readUserInput();
         if(!(action.equals("1") || action.equals("2") || action.equals("3") || action.equals("4"))){
-            System.out.println("Invalid Input! Enter the given service no only.");
+            System.out.println("\nInvalid Input! Enter the given service no only.");
             loadSellerServices();
         }
         return Integer.parseInt(action);
@@ -154,19 +154,81 @@ public class SellerClient {
                 processUpdateItem();
                 break;
             case 4:
+                processDeleteItem();
                 break;
             default:
-                System.out.println("Service can't identified!.");
+                System.out.println("\nService can't identified!.");
                 break;
         }
         loadSellerPortal();
+    }
+
+    private void processDeleteItem() {
+        DeleteItemResponse response;
+
+        try{
+            System.out.println("\nDelete Item Form Loading.... [Enter 'exit' to exit | 'menu' to Main Menu]");
+            response = deleteItemOnSystem();
+            System.out.println("Item has deleted successfully! - ItemID: "+response.getId());
+        }catch (Exception e){
+            System.out.println("Process Delete Item Has Failed! due to:"+e.getMessage());
+            printStackTrace(e);
+        }
+    }
+
+    private DeleteItemResponse deleteItemOnSystem() {
+        List<Item> itemList;
+        Item deleteItem;
+        DeleteItemRequest request;
+        DeleteItemResponse response;
+        boolean finalConfirm;
+
+        itemList = loadSellersItemsFromSystem().getItemsList();
+        if(itemList.isEmpty()){
+            throw new RuntimeException("Seller has no item listed on the system");
+        }
+        deleteItem = getRequiredToDeleteItemID(itemList);
+        printItem(deleteItem);
+        finalConfirm = getFinalConfirmToDelete(deleteItem);
+        if(!finalConfirm){
+            throw new RuntimeException("Item has not deleted on the system due to seller not confirmed! itemId: "+deleteItem.getId());
+        }
+        request = DeleteItemRequest.newBuilder()
+                .setId(deleteItem.getId())
+                .build();
+        response = deleteItemServiceBlockingStub.removeItem(request);
+        if(!response.getStatus()){
+            throw new RuntimeException(response.getDescription());
+        }
+        return response;
+    }
+
+    private boolean getFinalConfirmToDelete(Item deleteItem) {
+        System.out.println("\n-----------------------------------");
+        System.out.print("\nConfirm to delete item on id: "+deleteItem.getId()+" (Yes: y , No: n) :");
+        boolean finalConfirmation = scanner.nextLine().trim().equalsIgnoreCase("y");
+        System.out.println("\n-----------------------------------");
+        return finalConfirmation;
+    }
+
+    private Item getRequiredToDeleteItemID(List<Item> itemList) {
+        String itemId;
+        List<Item> selectedItemList;
+        System.out.print("\nEnter the required to delete itemID: ");
+        itemId = readUserInput();
+        selectedItemList = itemList.stream().filter(itm -> itm.getId().equals(itemId)).collect(Collectors.toList());
+        if(selectedItemList.isEmpty()){
+            System.out.println("No item listed under the sellers name using itemID: "+itemId+" | Please Try Again!");
+            return getRequiredToDeleteItemID(itemList);
+        }
+        return selectedItemList.get(0);
     }
 
     private void processUpdateItem() {
         UpdateItemResponse response;
 
         try{
-            System.out.println("\nUpdating Item....");
+            System.out.println("\nUpdating Item Form Loading.... [Enter 'exit' to exit | 'menu' to Main Menu]");
             response = updateItemOnSystem();
             System.out.println("Item has updated successfully! - ItemID: "+response.getId());
         }catch (Exception e){
@@ -202,44 +264,56 @@ public class SellerClient {
     private Item getUpdateItem(Item item) {
         String name ;
         String type ;
-        double price ;
-        double availableQty ;
+        String price ;
+        String availableQty ;
         String description ;
         Item newItem;
-        System.out.println("\n~~~~~~~~~ :Update Item Form: ~~~~~~~~~ [Enter 'exit' to exit | 'menu' to Main Menu]");
+        System.out.println("\n~~~~~~~~~ :Update Item Form: ~~~~~~~~~ [Enter 'exit' to exit | 'menu' to Main Menu | leave empty to set original]");
         System.out.print("\nEnter update item name: ");
         name = readUserInput();
+        if(name.isEmpty()){System.out.print(item.getName());}
         System.out.print("\nEnter update item type: ");
         type = readUserInput();
+        if(type.isEmpty()){System.out.print(item.getType());}
         System.out.print("\nEnter update item price: ");
-        price = Double.parseDouble(readUserInput());
+        price = readUserInput();
+        if(price.isEmpty()){System.out.print(item.getPrice());}
         System.out.print("\nEnter update item available quantity: ");
-        availableQty = Double.parseDouble(readUserInput());
+        availableQty = readUserInput();
+        if(availableQty.isEmpty()){System.out.print(item.getAvailableQty());}
+
+        if(!availableQty.isEmpty() && Double.parseDouble(availableQty) < item.getReservationsCount()){
+            System.out.println("There are "+item.getReservationsCount()+" reservations cannot reduce the quantity lower than it | Try Again!");
+            return  getUpdateItem(item);
+            }
+        if(!price.isEmpty() && Double.parseDouble(price) <= 0){
+            System.out.println("Price cannot be "+Double.parseDouble(price)+" price must be greater than zero | Try Again!");
+            return  getUpdateItem(item);
+        }
+
         System.out.print("\nEnter update item description: ");
         description = readUserInput();
-        newItem = Item.newBuilder()
-                .setId(item.getId())
-                .setDescription(description)
-                .setAvailableQty(availableQty)
-                .setType(type)
-                .setName(name)
-                .setPrice(price)
-                .setSellerId(clientID)
+        newItem = item.toBuilder()
+                .setName(name.isEmpty()? item.getName():name)
+                .setType(type.isEmpty()? item.getType():type)
+                .setPrice(price.isEmpty()? item.getPrice(): Double.parseDouble(price))
+                .setAvailableQty(availableQty.isEmpty()? item.getAvailableQty():Double.parseDouble(availableQty))
+                .setDescription(description.isEmpty()? item.getDescription():description)
                 .build();
         return newItem;
     }
 
     public Item getRequiredToUpdateItem(List<Item> itemList){
         String itemId;
-        Item item;
+        List<Item> selectedItemList;
         System.out.print("\nEnter the required to update itemID: ");
         itemId = readUserInput();
-        item = itemList.stream().filter(itm -> itm.getId().equals(itemId)).collect(Collectors.toList()).getFirst();
-        if(item == null){
+        selectedItemList = itemList.stream().filter(itm -> itm.getId().equals(itemId)).collect(Collectors.toList());
+        if(selectedItemList.isEmpty()){
             System.out.println("No item listed under the sellers name using itemID: "+itemId+" | Please Try Again!");
             return getRequiredToUpdateItem(itemList);
         }
-        return item;
+        return selectedItemList.get(0);
     }
 
     private void processAddItem() {
@@ -344,11 +418,12 @@ public class SellerClient {
             System.out.println("No Reservations Yet!");
         }
         System.out.println("========================================");
-
     }
+
     private void printReservation(Reservation reservation){
         System.out.println("\n~~~~~~ Reservation ~~~~~~");
         System.out.println("Res ID: " + reservation.getId());
+        System.out.println("Date : " + reservation.getDate());
         System.out.println("Customer Id: " + reservation.getCustId());
         System.out.println("Description: " + reservation.getDescription());
     }

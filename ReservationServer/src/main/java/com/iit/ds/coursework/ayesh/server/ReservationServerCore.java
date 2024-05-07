@@ -9,10 +9,7 @@ import io.grpc.Server;
 import io.grpc.ServerBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Scanner;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class ReservationServerCore {
@@ -83,24 +80,30 @@ public class ReservationServerCore {
     }
     public  void makeReservation(String itemID, String custID , String date){
         Item item;
+        String resId;
         Reservation reservation;
+        Map<String, Reservation> updatedReservationMap;
+
         if(!db.containsKey(itemID)){
             throw new RuntimeException("Item has not listed on the system! - ItemID : "+itemID);
         }
         item = db.get(itemID);
-        if(item.getReservationsMap().containsKey(date)){
-            reservation = item.getReservationsMap().get(date);
-            throw new RuntimeException("Allergy has reservation! - on date : "+ reservation.getId());
+        resId = String.join("",(date.trim().split("/"))); // Generate Key for reservation map
+        if(item.getReservationsMap().containsKey(resId)){
+            throw new RuntimeException("Already has reservation! - on date : "+ date);
         }
         if(item.getAvailableQty() == item.getReservationsCount()){
             throw new RuntimeException("Maximum reservation has reached! - on ItemID: "+item.getId());
         }
         reservation = Reservation.newBuilder()
                 .setCustId(custID)
-                .setId(date)
+                .setId(resId)
+                .setDate(date)
                 .setDescription("Reservation has placed by customer ID: "+custID+" on: "+date)
                 .build();
-        item.getReservationsMap().put(date,reservation); //Place the reservation
+        updatedReservationMap = new HashMap<>(item.getReservationsMap());
+        updatedReservationMap.put(resId,reservation); //Place the reservation
+        item = item.toBuilder().clearReservations().putAllReservations(updatedReservationMap).build();
         updateItemInDB(item); // Update the DB
     }
 
