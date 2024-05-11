@@ -7,6 +7,8 @@ import io.grpc.ManagedChannelBuilder;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 public class SellerClient {
@@ -34,12 +36,14 @@ public class SellerClient {
         String ip;
         int port;
         SellerClient client;
-        if (args.length != 2) {
-            System.out.println("Input: Reservation Server <host> <port>");
-            System.exit(1);
-        }
-        ip = args[0];
-        port = Integer.parseInt(args[1].trim());
+        Scanner userInput = new Scanner(System.in);
+
+        System.out.println("========== Enter Connecting Server IP and Port ========== ");
+        System.out.print("Server IP: ");
+        ip = userInput.nextLine().trim();
+        System.out.print("Server Port: ");
+        port = Integer.parseInt(userInput.nextLine().trim());
+        System.out.println("================================================");
         client= new SellerClient(ip, port);
         try {
             client.initializeConnection();
@@ -128,7 +132,7 @@ public class SellerClient {
         action = readUserInput();
         if(!(action.equals("1") || action.equals("2") || action.equals("3") || action.equals("4"))){
             System.out.println("\nInvalid Input! Enter the given service no only.");
-            loadSellerServices();
+            return loadSellerServices();
         }
         return Integer.parseInt(action);
     }
@@ -195,6 +199,7 @@ public class SellerClient {
         }
         request = DeleteItemRequest.newBuilder()
                 .setId(deleteItem.getId())
+                .setIsMasterReq(false)
                 .build();
         response = deleteItemServiceBlockingStub.removeItem(request);
         if(!response.getStatus()){
@@ -253,6 +258,7 @@ public class SellerClient {
         newItem = getUpdateItem(item);
         request = UpdateItemRequest.newBuilder()
                 .setItem(newItem)
+                .setIsMasterReq(false)
                 .build();
         response = updateItemServiceBlockingStub.updateItem(request);
         if(!response.getStatus()){
@@ -337,6 +343,7 @@ public class SellerClient {
         newItem = populateNewItem();
         request = AddItemRequest.newBuilder()
                 .setItem(newItem)
+                .setIsMasterReq(false)
                 .build();
         response = addItemServiceBlockingStub.addItem(request);
         if(!response.getStatus()){

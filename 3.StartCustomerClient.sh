@@ -1,1 +1,1 @@
-java -jar ./Customer/target/Customer-1.0-SNAPSHOT-jar-with-dependencies.jar localhost 11436
+java -jar ./Customer/target/Customer-1.0-SNAPSHOT-jar-with-dependencies.jar

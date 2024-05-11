@@ -20,6 +20,9 @@ public class GetMyItemsService extends GetMyItemServiceGrpc.GetMyItemServiceImpl
         String sellerId ;
         GetMyItemsResponse response;
         try{
+            if(!server.isServerReady()){ // Block getting request from clients until server get synced
+                throw new RuntimeException("Bootstrap server initiation not completed!");
+            }
             sellerId = request.getSellerId();
             System.out.println("Request received from sellers Id: "+sellerId);
             List<Item> itemList = server.getMyItemsFromDB(sellerId);

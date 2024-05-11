@@ -11,6 +11,8 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 public class CustomerClient {
@@ -35,12 +37,14 @@ public class CustomerClient {
         String ip;
         int port;
         CustomerClient client;
-        if (args.length != 2) {
-            System.out.println("Input: Reservation Server <host> <port>");
-            System.exit(1);
-        }
-        ip = args[0];
-        port = Integer.parseInt(args[1].trim());
+        Scanner userInput = new Scanner(System.in);
+
+        System.out.println("========== Enter Connecting Server IP and Port ========== ");
+        System.out.print("Server IP: ");
+        ip = userInput.nextLine().trim();
+        System.out.print("Server Port: ");
+        port = Integer.parseInt(userInput.nextLine().trim());
+        System.out.println("================================================");
         client= new CustomerClient(ip, port);
         try {
             client.initializeConnection();
@@ -133,7 +137,7 @@ public class CustomerClient {
         action = readUserInput();
         if(!(action.equals("1") || action.equals("2"))){
             System.out.println("\nInvalid Input! Enter the given service no only.");
-            loadCustomerServices();
+            return loadCustomerServices();
         }
         return Integer.parseInt(action);
     }
@@ -246,6 +250,7 @@ public class CustomerClient {
                 .setItemId(item.getId())
                 .setCustomerId(clientID)
                 .setReservationDate(strDate)
+                .setIsMasterReq(false)
                 .build();
     }
 
@@ -268,7 +273,8 @@ public class CustomerClient {
         GetAllItemRequest request;
         GetAllItemResponse response;;
         request = GetAllItemRequest.newBuilder()
-                .setCustId(clientID)
+                .setId(clientID)
+                .setIsServer(false)
                 .build();
         response = getAllItemsServiceBlockingStub.getAllItems(request);
         if(!response.getStatus()){

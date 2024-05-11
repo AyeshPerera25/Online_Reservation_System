@@ -1,19 +1,28 @@
 package com.iit.ds.coursework.ayesh.server;
 
 
-import com.iit.ds.coursework.ayesh.grpc.server.AddItemRequest;
-import com.iit.ds.coursework.ayesh.grpc.server.Item;
-import com.iit.ds.coursework.ayesh.grpc.server.Reservation;
+import com.iit.ds.coursework.ayesh.grpc.server.*;
+import com.iit.ds.coursework.ayesh.resources.synchronization.DistributedMasterLock;
 import com.iit.ds.coursework.ayesh.server.services.*;
+import com.iit.ds.coursework.ayesh.server.utility.MasterCampaignManagerThread;
+import io.grpc.ManagedChannel;
+import io.grpc.ManagedChannelBuilder;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import org.apache.zookeeper.KeeperException;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 public class ReservationServerCore {
 
+    public static final String ZOOKEEPER_URL = "127.0.0.1:2181";
+    public final String SERVER_NAME = "RESERVATION_SERVER";
+    public  final String SERVER_ADDRESS;
     private final String  serverIp;
     private final int serverPort;
     private final AddItemService addItemService;
@@ -22,25 +31,33 @@ public class ReservationServerCore {
     private final GetMyItemsService getMyItemsService;
     private final MakeReservationService makeReservationService;
     private final UpdateItemService updateItemService;
+    private final DistributedMasterLock distributedMasterLock;
+    private final AtomicBoolean isMaster = new AtomicBoolean(false);
+    private final AtomicBoolean serverReady = new AtomicBoolean(false);
+    private byte[] currentMasterNodeData;
     private final HashMap<String, Item> db = new HashMap<>(); // Maintain a in memory hashmap as a DB
 
 
     public static void main(String[] args) {
         String ip;
         int port;
-        if (args.length != 2) {
-            System.out.println("Input: Reservation Server <host> <port>");
-            System.exit(1);
-        }
+        Scanner userInput = new Scanner(System.in);
+
         try {
+            System.out.println("========== Enter Server IP and Port ========== ");
+            System.out.print("Server IP: ");
+            ip = userInput.nextLine().trim();
+            System.out.print("Server Port: ");
+            port = Integer.parseInt(userInput.nextLine().trim());
+            System.out.println("================================================");
+
             System.out.println("Initiating Reservation Server.....");
-            ip = args[0].trim();
-            port = Integer.parseInt(args[1].trim());
+            DistributedMasterLock.setZooKeeperUrl(ZOOKEEPER_URL);
             ReservationServerCore serverCore = new ReservationServerCore(ip, port);
+            serverCore.initiateCompeteMasterCampaign(); // Initiate competition to become master
             serverCore.startServer(); //Initiate services and start server
         } catch (Exception e) {
             System.out.println("Internal Server Failure!, Cause: " + e.getMessage());
-            Scanner userInput = new Scanner(System.in);
             System.out.println("\n Required to print Stack Trace? (Yes: y , No: n) :");
             boolean isPrintStackTraceRequired = userInput.nextLine().trim().equalsIgnoreCase("y");
             if (isPrintStackTraceRequired) {
@@ -52,9 +69,11 @@ public class ReservationServerCore {
         }
     }
 
-    public ReservationServerCore(String serverIp, int serverPort) {
+    public ReservationServerCore(String serverIp, int serverPort) throws IOException, InterruptedException, KeeperException {
         this.serverIp = serverIp;
         this.serverPort = serverPort;
+        SERVER_ADDRESS = serverIp+":"+serverPort;
+        this.distributedMasterLock = new DistributedMasterLock(SERVER_NAME, SERVER_ADDRESS);
         this.addItemService = new AddItemService(this);
         this.deleteItemService = new DeleteItemService(this);
         this.getAllItemsService = new GetAllItemsService(this);
@@ -63,7 +82,7 @@ public class ReservationServerCore {
         this.updateItemService = new UpdateItemService(this);
     }
 
-    private void startServer() throws IOException, InterruptedException {
+    private void startServer() throws IOException, InterruptedException, KeeperException {
         //Add Services to the server
         Server server = ServerBuilder.forPort(serverPort)
                 .addService(addItemService)
@@ -75,9 +94,97 @@ public class ReservationServerCore {
                 .build();
         //Start Server
         server.start();
+        getSyncWithOthers();
+        serverReady.set(true);
         System.out.println("Initiating Reservation Server has Succeed! : server running on : " +serverIp+" : "+ serverPort);
         server.awaitTermination();
     }
+
+    public void initiateCompeteMasterCampaign(){
+        Thread masterCampaignManager = new Thread(new MasterCampaignManagerThread(distributedMasterLock,this));
+        masterCampaignManager.start();
+    }
+
+    private void getSyncWithOthers() throws InterruptedException, KeeperException {
+        List<Item> itemList;
+        ManagedChannel channel;
+        GetAllItemsServiceGrpc.GetAllItemsServiceBlockingStub getAllItemsServiceBlockingStub;
+        GetAllItemRequest request;
+        GetAllItemResponse response;
+
+        System.out.println("Starting System Sync..");
+        byte [] currentMasterNodeData = distributedMasterLock.getMasterData();
+        String[] decodedMasterAddress = (new String(currentMasterNodeData)).split(":");
+        String masterServerIP = decodedMasterAddress[0].trim();
+        int masterServerPort =  Integer.parseInt(decodedMasterAddress[1].trim());
+        if(!Arrays.equals(currentMasterNodeData, distributedMasterLock.getServerData())){ //Check  if there are other registered servers and Master servers
+            System.out.println("Initializing connecting to Master Server to Sync at: " + masterServerIP+" : "+masterServerPort);
+            channel = ManagedChannelBuilder
+                    .forAddress(masterServerIP, masterServerPort)
+                    .usePlaintext()
+                    .build();
+            getAllItemsServiceBlockingStub = GetAllItemsServiceGrpc.newBlockingStub(channel);
+
+            System.out.println("Connected to the Master Server at: " + masterServerIP+" : "+masterServerPort+" | Start sync data...");
+            request = GetAllItemRequest.newBuilder()
+                    .setId(serverIp+":"+serverPort)
+                    .setIsServer(true)
+                    .build();
+            response = getAllItemsServiceBlockingStub.getAllItems(request);
+            if(!response.getStatus()){
+                throw new RuntimeException(response.getDescription());
+            }
+
+            System.out.println("Updating Local DB...");
+            if(!response.getItemsList().isEmpty()){
+                response.getItemsList().forEach(this::insertSyncDBData);
+                System.out.println("DB get synced with Master successfully!");
+            }else {
+                System.out.println("No Items to update!");
+            }
+        }else {
+            System.out.println("System Sync Skipped! Due to current server is the master");
+        }
+    }
+
+    private void insertSyncDBData(Item item){
+        if(!db.containsKey(item.getId())){
+            db.put(item.getId(), item);
+            System.out.println("DB get synced with item no: "+item.getId());
+        }
+    }
+
+    public boolean isServerReady(){
+        return serverReady.get();
+    }
+
+    public boolean isMaster() {
+        return isMaster.get();
+    }
+
+    public void setIsMaster(boolean isMaster){
+        this.isMaster.set(isMaster);
+    }
+
+    public synchronized void setCurrentMasterNodeData(byte[] masterNodeData) {
+        this.currentMasterNodeData = masterNodeData;
+    }
+
+    public List<String[]> getSlaveServerData() throws KeeperException, InterruptedException {
+        List<String[]> result = new ArrayList<>();
+        List<byte[]> slaveServerData = distributedMasterLock.getSlaveData();
+
+        if(!slaveServerData.isEmpty()){
+            slaveServerData.forEach(data -> result.add((new String(data)).split(":")));
+        }
+        return result;
+    }
+
+    public String [] getCurrentMasterData() throws InterruptedException, KeeperException {
+        byte[] masterData = distributedMasterLock.getMasterData();
+        return (new String(masterData)).split(":");
+    }
+
     public  void makeReservation(String itemID, String custID , String date){
         Item item;
         String resId;
