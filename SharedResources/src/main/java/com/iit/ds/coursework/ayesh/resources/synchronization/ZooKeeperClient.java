@@ -39,7 +39,10 @@ public class ZooKeeperClient {
         return zooKeeper.getData(path, shouldWatch, null);
     }
 
-
-
-
+    public void write(String path, byte[] data) throws KeeperException, InterruptedException {
+        zooKeeper.setData(path, data, -1);
+    }
+    public void forceDelete(String path) throws KeeperException, InterruptedException {
+        ZKUtil.deleteRecursive(zooKeeper, path);
+    }
 }

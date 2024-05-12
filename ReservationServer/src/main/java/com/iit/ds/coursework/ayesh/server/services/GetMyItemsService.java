@@ -16,21 +16,21 @@ public class GetMyItemsService extends GetMyItemServiceGrpc.GetMyItemServiceImpl
     }
 
     @Override
-    public void getMyItems (GetMyItemsRequest request , StreamObserver<GetMyItemsResponse> responseObserver){
-        String sellerId ;
+    public void getMyItems(GetMyItemsRequest request, StreamObserver<GetMyItemsResponse> responseObserver) {
+        String sellerId;
         GetMyItemsResponse response;
-        try{
-            if(!server.isServerReady()){ // Block getting request from clients until server get synced
+        try {
+            if (!server.isServerReady()) { // Block getting request from clients until server get synced
                 throw new RuntimeException("Bootstrap server initiation not completed!");
             }
             sellerId = request.getSellerId();
-            System.out.println("Request received from sellers Id: "+sellerId);
+            System.out.println("Request received from sellers Id: " + sellerId);
             List<Item> itemList = server.getMyItemsFromDB(sellerId);
-            response = populateResponse(true,"Sending Sellers Items Has Successes!",itemList);
-            System.out.println("Sending sellers all items! Sellers Id: "+sellerId);
-        }catch (Exception e){
-            System.out.println("Sending sellers all items has Failed! | "+ e.getMessage());
-            response = populateResponse(false, e.getMessage(),new ArrayList<>());
+            response = populateResponse(true, "Sending Sellers Items Has Successes!", itemList);
+            System.out.println("Sending sellers all items! Sellers Id: " + sellerId);
+        } catch (Exception e) {
+            System.out.println("Sending sellers all items has Failed! | " + e.getMessage());
+            response = populateResponse(false, e.getMessage(), new ArrayList<>());
         }
         responseObserver.onNext(response);
         responseObserver.onCompleted();
