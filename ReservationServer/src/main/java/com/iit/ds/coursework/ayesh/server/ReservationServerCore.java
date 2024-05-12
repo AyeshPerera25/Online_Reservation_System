@@ -2,18 +2,20 @@ package com.iit.ds.coursework.ayesh.server;
 
 
 import com.iit.ds.coursework.ayesh.grpc.server.*;
+import com.iit.ds.coursework.ayesh.resources.registration.NameServiceClient;
 import com.iit.ds.coursework.ayesh.resources.synchronization.DistributedMasterLock;
+import com.iit.ds.coursework.ayesh.resources.synchronization.ZooKeeperClient;
 import com.iit.ds.coursework.ayesh.resources.transaction.DistributedTx;
 import com.iit.ds.coursework.ayesh.resources.transaction.DistributedTxCoordinator;
 import com.iit.ds.coursework.ayesh.resources.transaction.DistributedTxListener;
 import com.iit.ds.coursework.ayesh.resources.transaction.DistributedTxParticipant;
 import com.iit.ds.coursework.ayesh.server.services.*;
 import com.iit.ds.coursework.ayesh.server.utility.MasterCampaignManagerThread;
-import io.grpc.ManagedChannel;
-import io.grpc.ManagedChannelBuilder;
-import io.grpc.Server;
-import io.grpc.ServerBuilder;
+import io.grpc.*;
 import org.apache.zookeeper.KeeperException;
+import org.apache.zookeeper.WatchedEvent;
+import org.apache.zookeeper.Watcher;
+import org.apache.zookeeper.ZooKeeper;
 
 import java.io.IOException;
 import java.util.*;
@@ -25,9 +27,15 @@ import java.util.stream.Collectors;
 public class ReservationServerCore {
 
     public static final String ZOOKEEPER_URL = "127.0.0.1:2181";
-    public final String SERVER_NAME = "RESERVATION_SERVER";
+    public static final String NAME_SERVICE_ADDRESS = "http://localhost:2379";
+    public static final String SERVER_NAME = "RESERVATION_SERVER";
     public final String SERVER_ADDRESS;
     private final String serverIp;
+    private static final String initServerID = "server";
+    private static String regServerID ;
+    private static final String initServerIp = "127.0.0.1";
+    private static final int initServerPort = 11436;
+    private static int regServerPort ;
     private final int serverPort;
     private final AddItemService addItemService;
     private final DeleteItemService deleteItemService;
@@ -57,23 +65,87 @@ public class ReservationServerCore {
         this.transaction = new DistributedTxParticipant();
     }
 
+    private static void registerToETCD(String ip,int port) throws IOException, InterruptedException {
+        int serverNo = 0;
+        String serverName ;
+        boolean foundSpot= false;
+        int serverPort = port-1;
+        NameServiceClient.ServiceDetails serviceDetails = null;
+        List<String> connectedNodeData;
+
+        try {
+            NameServiceClient client = new NameServiceClient(NAME_SERVICE_ADDRESS);
+            connectedNodeData = getZookeeperConnectedNodes();
+            do {
+                serverNo += 1;
+                serverName = initServerID + serverNo;
+                serverPort += 1;
+                serviceDetails = client.findOnceService(serverName);
+                if (serviceDetails != null) {   // Check With zookeeper connected nodes is there any available port
+                    if(!connectedNodeData.contains(String.valueOf(serviceDetails.getPort()))){
+                        foundSpot = true;
+                    }
+                } else {
+                    foundSpot = true;
+                }
+
+            } while (!foundSpot);
+            regServerID = serverName;
+            regServerPort = serverPort;
+            client.registerService(serverName, ip, serverPort, "tcp");
+            System.out.println("~~~~~ Server Registered Under| Sever Name: " + regServerID + " Server Address: " + ip + regServerPort);
+        }catch (Exception e){
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static List<String> getZookeeperConnectedNodes() throws IOException, InterruptedException, KeeperException { // Load Zookeeper connected nodes
+        String rootPath = "/"+SERVER_NAME;
+        ZooKeeper zooKeeper;
+        List<String> childrenPaths;
+        List<byte[]> result = new ArrayList<>();
+        List<String> connectedNodeData = new ArrayList<>();
+        byte[] data;
+
+        zooKeeper = new ZooKeeper(ZOOKEEPER_URL, 5000, event -> {});
+        childrenPaths = zooKeeper.getChildren(rootPath, false);
+        for (String path : childrenPaths) {
+            path = rootPath + "/" + path;
+            data = zooKeeper.getData(path,false,null);
+            result.add(data);
+        }
+        if (!result.isEmpty()) {
+            result.forEach(nod -> connectedNodeData.add((new String(nod)).split(":")[1].trim()));
+        }
+        return connectedNodeData;
+    }
+
     public static void main(String[] args) {
         String ip;
-        int port;
+        String port;
         Scanner userInput = new Scanner(System.in);
 
         try {
-            System.out.println("========== Enter Server IP and Port ========== ");
+            System.out.println("========== Enter Server IP and Port ==========[Enter Blank to Assign Default Value] ");
             System.out.print("Server IP: ");
             ip = userInput.nextLine().trim();
-            System.out.print("Server Port: ");
-            port = Integer.parseInt(userInput.nextLine().trim());
+            if(ip.isEmpty() || ip.equals("localhost")){
+                System.out.println("Assign default ip: "+initServerIp);
+                ip = initServerIp;
+            }
+            System.out.print("\nServer Port: ");
+            port = userInput.nextLine().trim();
+            if(port.isEmpty() ){
+                System.out.println("Assign default port: "+initServerPort);
+                port = String.valueOf(initServerPort);
+            }
             System.out.println("================================================");
 
+            registerToETCD(ip, Integer.parseInt(port)); // register to ETCD
             System.out.println("Initiating Reservation Server.....");
             DistributedMasterLock.setZooKeeperUrl(ZOOKEEPER_URL);
             DistributedTx.setZooKeeperURL(ZOOKEEPER_URL);
-            ReservationServerCore serverCore = new ReservationServerCore(ip, port);
+            ReservationServerCore serverCore = new ReservationServerCore(ip, regServerPort);
             serverCore.initiateCompeteMasterCampaign(); // Initiate competition to become master
             serverCore.startServer(); //Initiate services and start server
         } catch (Exception e) {

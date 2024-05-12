@@ -1,16 +1,14 @@
 package com.iit.ds.coursework.ayesh.customer;
 
 import com.iit.ds.coursework.ayesh.grpc.server.*;
+import com.iit.ds.coursework.ayesh.resources.registration.NameServiceClient;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
-import java.util.Scanner;
+import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -23,6 +21,13 @@ public class CustomerClient {
     private String clientID;
     private String clientName;
     private final Scanner scanner;
+    private static Map<String, NameServiceClient.ServiceDetails> serverDetailMap = new HashMap<>();;
+    private static final String initServerID = "server";
+    private static String regServerID ;
+    private static final String initServerIp = "127.0.0.1";
+    private static final int initServerPort = 11436;
+    private static int regServerPort ;
+    public static final String NAME_SERVICE_ADDRESS = "http://localhost:2379";
     private PlaceReservationServiceGrpc.PlaceReservationServiceBlockingStub placeReservationServiceBlockingStub;
     private GetAllItemsServiceGrpc.GetAllItemsServiceBlockingStub getAllItemsServiceBlockingStub;
 
@@ -37,17 +42,17 @@ public class CustomerClient {
         String ip;
         int port;
         CustomerClient client;
-        Scanner userInput = new Scanner(System.in);
+        NameServiceClient.ServiceDetails serviceDetails;
 
-        System.out.println("========== Enter Connecting Server IP and Port ========== ");
-        System.out.print("Server IP: ");
-        ip = userInput.nextLine().trim();
-        System.out.print("Server Port: ");
-        port = Integer.parseInt(userInput.nextLine().trim());
-        System.out.println("================================================");
+        updateServerDetails();
+        serviceDetails = selectServer();
+        ip = serviceDetails.getIPAddress();
+        port = serviceDetails.getPort();
+
         client= new CustomerClient(ip, port);
         try {
             client.initializeConnection();
+            Thread.sleep(1000);
             client.processUserLogin();
             client.loadCustomerPortal();
         }catch (Exception e){
@@ -56,6 +61,47 @@ public class CustomerClient {
         }finally {
             client.systemShutDown();
         }
+    }
+
+    private static void updateServerDetails() {
+
+        int serverNo = 0;
+        String serverName ;
+        int port = initServerPort-1;
+        NameServiceClient.ServiceDetails serviceDetails = null;
+        NameServiceClient client;
+        System.out.println(" ~~ Loading Servers....");
+        try {
+            client = new NameServiceClient(NAME_SERVICE_ADDRESS);
+            do {
+                serverNo += 1;
+                serverName = initServerID + serverNo;
+                port += 1;
+                serviceDetails = client.findOnceService(serverName);
+                if (serviceDetails != null && !serverDetailMap.containsKey(serverName)) {
+                    serverDetailMap.put(serverName, serviceDetails);
+                }
+            } while (serviceDetails != null);
+        }catch (Exception e){
+            System.out.println("Server Detail Update Failed! due to: "+e.getMessage());
+            throw new RuntimeException(e.getMessage());
+        }
+    }
+    private static NameServiceClient.ServiceDetails selectServer(){
+        List<String> name = new ArrayList<>();
+        int serverNo= 0;
+        Scanner scanner1 = new Scanner(System.in);
+        System.out.println("========== Select Connecting Server ========== ");
+        for(String serverName : serverDetailMap.keySet()){
+            serverNo++;
+            System.out.println("["+serverNo+"] "+serverName);
+            name.add(serverName);
+        }
+        System.out.print(" Select the number for connecting server: ");
+        int number = Integer.parseInt(scanner1.nextLine().trim());
+        System.out.println("================================================");
+        regServerID = name.get(number-1);
+        return serverDetailMap.get(name.get(number-1));
     }
 
     private void initializeConnection() {
@@ -169,13 +215,14 @@ public class CustomerClient {
         }
     }
 
-    private ReservationResponse placeNewReservationToItem(){
+    private ReservationResponse placeNewReservationToItem() throws InterruptedException {
         List<Item> itemList;
         Item resItem;
         ReservationRequest request;
         ReservationResponse response;
 
         itemList = loadAllItemsFromSystem().getItemsList();
+        Thread.sleep(1000);
         if(itemList.isEmpty()){
             throw new RuntimeException("No item still listed on the system!");
         }

@@ -6,7 +6,7 @@
 
     <groupId>com.iit.ds.coursework.ayesh.seller</groupId>
     <artifactId>Seller</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>1.0</version>
 
     <properties>
         <maven.compiler.source>21</maven.compiler.source>
@@ -38,7 +38,7 @@
         <dependency>
             <groupId>com.iit.ds.coursework.ayesh.resources</groupId>
             <artifactId>SharedResources</artifactId>
-            <version>1.0-SNAPSHOT</version>
+            <version>1.0</version>
         </dependency>
     </dependencies>
 

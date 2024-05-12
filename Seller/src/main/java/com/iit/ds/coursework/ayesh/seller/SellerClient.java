@@ -1,25 +1,31 @@
 package com.iit.ds.coursework.ayesh.seller;
 
 import com.iit.ds.coursework.ayesh.grpc.server.*;
+import com.iit.ds.coursework.ayesh.resources.registration.NameServiceClient;
+import io.grpc.ConnectivityState;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Scanner;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import java.io.IOException;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class SellerClient {
 
-    private final String serverIP;
-    private final int serverPort;
+    private String serverIP;
+    private int serverPort;
     private final Scanner scanner;
     private boolean isLogged = false;
     private ManagedChannel channel = null;
     private String clientID;
     private String clientName;
+    private static Map<String, NameServiceClient.ServiceDetails> serverDetailMap = new HashMap<>();;
+    private static final String initServerID = "server";
+    private static String regServerID ;
+    private static final String initServerIp = "127.0.0.1";
+    private static final int initServerPort = 11436;
+    private static int regServerPort ;
+    public static final String NAME_SERVICE_ADDRESS = "http://localhost:2379";
     private AddItemServiceGrpc.AddItemServiceBlockingStub addItemServiceBlockingStub;
     private DeleteItemServiceGrpc.DeleteItemServiceBlockingStub deleteItemServiceBlockingStub;
     private GetMyItemServiceGrpc.GetMyItemServiceBlockingStub getMyItemServiceBlockingStub;
@@ -32,21 +38,21 @@ public class SellerClient {
         this.scanner = new Scanner(System.in);
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args)  {
         String ip;
         int port;
         SellerClient client;
-        Scanner userInput = new Scanner(System.in);
+        NameServiceClient.ServiceDetails serviceDetails;
 
-        System.out.println("========== Enter Connecting Server IP and Port ========== ");
-        System.out.print("Server IP: ");
-        ip = userInput.nextLine().trim();
-        System.out.print("Server Port: ");
-        port = Integer.parseInt(userInput.nextLine().trim());
-        System.out.println("================================================");
+        updateServerDetails();
+        serviceDetails = selectServer();
+        ip = serviceDetails.getIPAddress();
+        port = serviceDetails.getPort();
+
         client = new SellerClient(ip, port);
         try {
             client.initializeConnection();
+            Thread.sleep(1000);
             client.processUserLogin();
             client.loadSellerPortal();
 
@@ -56,6 +62,48 @@ public class SellerClient {
         } finally {
             client.systemShutDown();
         }
+    }
+
+    private static void updateServerDetails() {
+
+        int serverNo = 0;
+        String serverName ;
+        int port = initServerPort-1;
+        NameServiceClient.ServiceDetails serviceDetails = null;
+        NameServiceClient client;
+        System.out.println(" ~~ Loading Servers....");
+        try {
+            client = new NameServiceClient(NAME_SERVICE_ADDRESS);
+            do {
+                serverNo += 1;
+                serverName = initServerID + serverNo;
+                port += 1;
+                serviceDetails = client.findOnceService(serverName);
+                if (serviceDetails != null && !serverDetailMap.containsKey(serverName)) {
+                    serverDetailMap.put(serverName, serviceDetails);
+                }
+            } while (serviceDetails != null);
+        }catch (Exception e){
+            System.out.println("Server Detail Update Failed! due to: "+e.getMessage());
+            throw new RuntimeException(e.getMessage());
+        }
+    }
+    private static NameServiceClient.ServiceDetails selectServer(){
+        NameServiceClient.ServiceDetails serviceDetails;
+        List<String> name = new ArrayList<>();
+        int serverNo= 0;
+        Scanner scanner1 = new Scanner(System.in);
+        System.out.println("========== Select Connecting Server ========== ");
+        for(String serverName : serverDetailMap.keySet()){
+            serverNo++;
+            System.out.println("["+serverNo+"] "+serverName);
+            name.add(serverName);
+        }
+        System.out.print(" Select the number for connecting server: ");
+        int number = Integer.parseInt(scanner1.nextLine().trim());
+        System.out.println("================================================");
+        regServerID = name.get(number-1);
+        return serverDetailMap.get(name.get(number-1));
     }
 
     private void initializeConnection() {
@@ -180,7 +228,7 @@ public class SellerClient {
         }
     }
 
-    private DeleteItemResponse deleteItemOnSystem() {
+    private DeleteItemResponse deleteItemOnSystem() throws InterruptedException {
         List<Item> itemList;
         Item deleteItem;
         DeleteItemRequest request;
@@ -216,9 +264,10 @@ public class SellerClient {
         return finalConfirmation;
     }
 
-    private Item getRequiredToDeleteItemID(List<Item> itemList) {
+    private Item getRequiredToDeleteItemID(List<Item> itemList) throws InterruptedException {
         String itemId;
         List<Item> selectedItemList;
+        Thread.sleep(1000);
         System.out.print("\nEnter the required to delete itemID: ");
         itemId = readUserInput();
         selectedItemList = itemList.stream().filter(itm -> itm.getId().equals(itemId)).collect(Collectors.toList());
@@ -242,7 +291,7 @@ public class SellerClient {
         }
     }
 
-    private UpdateItemResponse updateItemOnSystem() {
+    private UpdateItemResponse updateItemOnSystem() throws InterruptedException {
         Item item;
         List<Item> itemList;
         Item newItem;
@@ -317,9 +366,10 @@ public class SellerClient {
         return newItem;
     }
 
-    public Item getRequiredToUpdateItem(List<Item> itemList) {
+    public Item getRequiredToUpdateItem(List<Item> itemList) throws InterruptedException {
         String itemId;
         List<Item> selectedItemList;
+        Thread.sleep(1000);
         System.out.print("\nEnter the required to update itemID: ");
         itemId = readUserInput();
         selectedItemList = itemList.stream().filter(itm -> itm.getId().equals(itemId)).collect(Collectors.toList());

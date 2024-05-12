@@ -6,7 +6,7 @@
 
     <groupId>com.iit.ds.coursework.ayesh.server</groupId>
     <artifactId>ReservationServer</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>1.0</version>
 
     <properties>
         <maven.compiler.source>21</maven.compiler.source>
@@ -36,9 +36,14 @@
             <version>1.36.0</version>
         </dependency>
         <dependency>
+            <groupId>org.apache.zookeeper</groupId>
+            <artifactId>zookeeper</artifactId>
+            <version>3.8.4</version>
+        </dependency>
+        <dependency>
             <groupId>com.iit.ds.coursework.ayesh.resources</groupId>
             <artifactId>SharedResources</artifactId>
-            <version>1.0-SNAPSHOT</version>
+            <version>1.0</version>
         </dependency>
     </dependencies>
 
