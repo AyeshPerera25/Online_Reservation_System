@@ -1,8 +1,8 @@
 # Online_Reservation_System
 
-1. Introduction.
+The Online Reservation System is a highly available and scalable distributed system implemented to provide a digital platform for fulfilling the seller’s and customer’s business requirements. Each two party have provided their portals to log and attend to their task.
 
-   The Online Reservation System is a highly available and scalable distributed system implemented to provide a digital platform for fulfilling the seller’s and customer’s business requirements. Each two party have provided their portals to log and attend to their task.
+1. Introduction.
    
    a. Sellers Portal.
    
