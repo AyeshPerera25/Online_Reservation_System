@@ -1,0 +1,128 @@
+syntax = "proto3";
+option java_multiple_files = true;
+package com.iit.ds.coursework.ayesh.grpc.server;
+
+// For customer's  reservations
+message Reservation{
+  string id =1;
+  string custId = 2;
+  string description = 3;
+  string date = 4;
+}
+
+// For Seller's Advertisement
+message Item {
+  string id = 1;
+  string name = 2;
+  string type = 3;
+  double price = 4;
+  double availableQty = 5;
+  string description = 6;
+  string sellerId = 7;
+  map<string, Reservation > reservations = 8;
+}
+
+// Seller's CRUD operation request responses wrappers
+message AddItemRequest {
+  string reqID = 1;
+  Item item = 2;
+  bool isMasterReq = 3;
+}
+
+message AddItemResponse {
+  string id = 1;
+  bool status = 2;
+  string description = 3;
+}
+
+message GetMyItemsRequest {
+  string sellerId = 1;
+}
+
+message GetMyItemsResponse {
+  bool status = 1;
+  repeated Item items = 2;
+  string description = 3;
+}
+
+message UpdateItemRequest {
+  string reqID = 1;
+  Item item = 2;
+  bool isMasterReq = 3;
+}
+
+message UpdateItemResponse {
+  string id = 1;
+  bool status = 2;
+  string description = 3;
+}
+
+message DeleteItemRequest {
+  string reqID = 1;
+  string itemID = 2;
+  bool isMasterReq = 3;
+}
+
+message DeleteItemResponse {
+  string id = 1;
+  bool status = 2;
+  string description = 3;
+}
+
+// Customer's Services Request/Response wrappers
+message ReservationRequest {
+  string reqID = 1;
+  string itemId = 2;
+  string customerId = 3;
+  string reservationDate = 4;
+  bool isMasterReq = 5;
+}
+
+message ReservationResponse {
+  string resId = 1;
+  bool status = 2;
+  string description = 3;
+}
+
+message GetAllItemRequest {
+  string id = 1;
+  bool isServer = 2;
+}
+
+message GetAllItemResponse {
+  bool status = 1;
+  repeated Item items = 2;
+  string description = 3;
+}
+
+// Reservation Server Services
+
+service GetMyItemService {
+  rpc getMyItems(GetMyItemsRequest)
+      returns(GetMyItemsResponse);
+}
+
+service GetAllItemsService {
+  rpc getAllItems(GetAllItemRequest)
+      returns(GetAllItemResponse);
+}
+
+service AddItemService {
+  rpc addItem(AddItemRequest)
+      returns(AddItemResponse);
+}
+
+service DeleteItemService {
+  rpc removeItem(DeleteItemRequest)
+      returns(DeleteItemResponse);
+}
+
+service UpdateItemService {
+  rpc updateItem(UpdateItemRequest)
+      returns(UpdateItemResponse);
+}
+
+service PlaceReservationService {
+  rpc placeReservation(ReservationRequest)
+      returns(ReservationResponse);
+}
