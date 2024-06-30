@@ -239,12 +239,3 @@ the transaction ID.
       • Introduce the microservice architecture to the system.
       • Integrated to the Docker to simplify the system deployment and horizontal scaling.
       • Integrate a proper login to the customer and seller
-
-
-
-
-
-  
-
-  
-
