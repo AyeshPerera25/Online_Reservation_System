@@ -31,11 +31,11 @@
 
 2. Architecture.
    
-   2.1. Design Architecture
+   2.1. Design Architecture.
    
    ![image](https://github.com/AyeshPerera25/Online_Reservation_System/blob/development/Images/img_2.png?raw=true)
 
-  2.2. Components
+  2.2. Components.
   
   Implemented system designed with the following main components and JAVA JDK version 11 has been used for developing the system.
   
@@ -80,6 +80,169 @@
   In the implemented system, stubs are implemented on each node and client according to the service required to invoke. When sending the request to invoke the service, the first sender parses the request to the local stub created relevant to the service. The stub builds and serialize the request and then passes it to the local operating system. The local operating system sends the serialized request to the remote machine over the network and when it is received to the remote machine, its operating system passes the request to the relevant service stub implemented on the target client or node. The remote stub then deserialize the request and parses it to the service required to invoke and the result gets sent as a response in the same way.
 
   ![image](https://github.com/AyeshPerera25/Online_Reservation_System/blob/development/Images/img_3.png)
+
+  2.5. Coordination.
+  
+   Node coordination is another main part of the distributed system. This feature needs to be improved and structured when implementing features like node synchronization and minimizing fault tolerance. In this part describe the node coordination on scaling and node failing.
+   
+   In a distributed system, its node needs to scale horizontally according to the workload and demand. Each node has a unique network address to call and those need to be shared nodes to work as a cluster. It’s very inefficient and burden to maintain the all network connection details of every node within each node because every time a new node is added or removed from the system this network connection data set needs to be updated. Therefore, centralized network connection data registry needs to be maintained which contains the connection data of every node in the cluster. Therefore, any new node can update its connection data to the registry and any node which needs to connect to another node can easily get the relevant connection data it.
+   
+   In this project Etcd server has been used as a naming registry service to hold each server connection data. Therefore, all the server and clients can connect their required servers by getting the connection details from the Etcd naming registry server.
+   
+   With the help of Zookeeper and the Etcd server, the implemented system can be able to identify its position on the server cluster when adding a new server node to the cluster. When starting the system, the initial server node takes the 11436 port under the ‘server1’ name and registers to the Etcd server and also get connected to the Zookeeper to competing the Master lock. Then the second server node gets started, its checks the registered ports on the connection detail at Etcd server and the availability of those ports with the Zookeeper child nodes data which is related to the Master and Slave servers. Then the second server node takes the next available port and gets registered as the first server.
+
+   ![image](https://github.com/AyeshPerera25/Online_Reservation_System/blob/development/Images/img_4.png?raw=true)
+
+   When a server node get failed next starting server node takes its place by taking the failed node name and port. Therefore, it ensures server availability on the system.
+
+   ![image](https://github.com/AyeshPerera25/Online_Reservation_System/blob/development/Images/img_5.png?raw=true)
+
+   2.6. Synchronization.
+   
+   The biggest challenge which distributed systems need to overcome is synchronization. When every node receives service requests concurrently it can result conflicts in the process due to many requests trying to access the same record and update it. To overcome this, the system needs to allow requests to get processed according to the first come first served basis and for that, every node needs to get in sync with each other and their work with relative to the time. But considering the local time on each node could not be exactly equal because those nodes could be run on different servers. Therefore, the time on selected one node in the cluster is considered as a global clock and handles the request under the supervision of the selected node. Therefore implemented system uses a Master/Slave configuration with the help of Apache Zookeeper to coordinate the service request handling among the nodes.
+   
+   Every node contains a Distributed Master Lock instance, and their main goal is to keep in connect with Zookeeper and registered as a child node. Zookeeper works as a coordination platform in the Distributed system, and it is a reliable and efficient open- source program designed by Apache. Zookeeper maintains the child node as a path in its hierarchical namespace under the Root Zoned. When a new child node gets added to the system Zookeeper register its path under Znode with sequentially named order.
+
+   ![image](https://github.com/AyeshPerera25/Online_Reservation_System/blob/development/Images/img_6.png?raw=true)
+
+   Users can add Watchers to Zookeeper to keep in track with the changes in this Znode and its child node. In any change occurs to the targeted node, the watcher can implement to invoke any process to perform.
+
+   ![image](https://github.com/AyeshPerera25/Online_Reservation_System/blob/development/Images/img_7.png?raw=true)
+   
+   Zookeeper keeps in track with the availability of each component registered as a child node and If any component get exits from the system or get failed, Zookeeper remove the relevant child node related to the component with after the given time out. Therefore, Zookeeper can use to track the availability of the system nodes also.
+   
+   By using these techniques on Zookeeper, the Distributed Master Lock instance of each server node sorts out the Master Lock instance which has registered in the shortest child node path. Then the shortest child node path Master Lock instance elects its server node as a Master and Others become Slave. If the elected Master server fails then the next shortest child node path registered Master Lock instance makes its server node instance as the new Master.
+   
+   When a new slave server node is added to the system, its first job is to get connected with the available Master server and sync its in-memory database with the Master’s local database. Then the new Slave server is ready to accept service requests from the others.
+  
+   When the Slave server gets a service request it re-sends to the Master server. The Master server picks the request sent from the Slave server and distributes it to all the available Slave servers. Slave servers then update their local DB with the request sent from the Master server. During this process, all the requests received to the system coordinate by from the Master server therefore the system works synchronized with relative to one global clock.
+
+   2.7. Consistency.
+   
+   Proper distributed system needs to ensure the high availability of the data and its consistency. For that system needs to maintain replicated data sources as a backup in case of any failure. Therefore, when one node get failed the next new node which takes its place can recover the failed node data and continue its work. In the implemented system used the primary based sequential consistency model to coordinate nodes in-memory databases from the process described in the Synchronization part. Therefore, the Master node’s role is to coordinate the data insert to each node in-memory DB and the Slave server only can perform the data read service requests on its own.
+   
+   As described in the Synchronization part, Master/Slave coordination helps to get synced with other in-memory databases therefore, every node has its replicated database on each other. As a result of that implemented system has much higher data availability with higher consistency.
+
+   ![image](https://github.com/AyeshPerera25/Online_Reservation_System/blob/development/Images/img_8.png?raw=true)
+
+   2.8. Fault tolerance.
+   
+   Fault tolerance in the distributed system indicates the ability of the system to provide its services at the failure of the system component. These failures can occur due to corrupted data, implementation bugs or hardware failure. Redundancy and replication are the main fault tolerance risk mitigation strategies used to integrate into a distributed system. Redundancy is the process of replicating system components across numerous nodes to ensure that they continue to function even if one of them fails. Replication keeps several copies of data or services across nodes, which improves data consistency and availability.
+ 
+   To ensure data consistency and fault tolerance, the implemented reservation system used distributed transaction commits. This approach ensures atomicity, meaning a commit update either happens successfully on all participant servers or fails entirely. The two- phase commit protocol is used to implement the distributed transaction logic and it ensures that all nodes either commit the update or roll back any changes upon the vote on each participant server.
+   
+   In the implemented system Master Server acts as a Transaction coordinator and Slave servers act as Transaction participants. When the slave server received a new service request it re directed to the Master server. After receiving the request sent from Slave servers, the Master server starts a transaction by creating a Zoned on the Zookeeper under the transaction ID. Then it sends to the request back to Slave servers with the transaction ID and waits to get the vote from the Slave servers. After receiving the request from the Master, Slave servers are used to create child nodes under the Transaction ID named Znode in Zookeeper and add ‘vote commit’ on their representing child node data if the slave server manages to handle the request without any issue otherwise place a ‘vote abort.’ Then wait by watching Znode data get updated to ‘Global Commit’ or ‘Global Abort’ by from Master transaction coordinator. After receiving all the votes from every slave node, the Master branch updates the Znode data to ‘Global Commit’ when it has not received any ‘vote abort’ from slave nodes and tells slave servers to process the service request and update the local DB. Otherwise, it places ‘Global Abort’ and tells the Slave servers to discard the service request and initiate rollback.
+
+
+4. System Behavior.
+   
+   4.1. When an item is Add/Update/Remove to the system.
+
+      ![image](https://github.com/AyeshPerera25/Online_Reservation_System/blob/development/Images/img_27.png?raw=true)
+
+      • This sequential diagram demonstrates the process of the system when services like add item, update item, and remove item.
+
+      • First Seller send a service request to the available server node.
+
+      • Then the slave server node redirects the request to the Master server node.
+
+      • The master node validate the request and creates a root Znode in the Zookeeper under
+the transaction ID.
+
+      • Then Master redistributes the service request to Slave nodes with Transaction ID.
+
+      • The slave node creates child nodes under the Root Znode using the transaction ID after receiving the request from the Master and updating their child nodes data with ‘VOTE COMMIT’ if the request is received successfully otherwise update ‘VOTE ABORT’.
+
+      • Master collects the voting data from the child node under the Transaction Znode and checks any ‘VOTE ABORT’ there. If it is available update the Root Znode data as ‘GLOBAL ABORT’ otherwise update as ‘GLOBAL COMMIT’.
+
+      • Every node gets an update from the Root Znode data change using Watchers and if the update is ‘GLOBAL COMMIT’, then process the request and update the local DB otherwise discard the request.
+
+      • Finally, a response was sent from the Master to Slave then Seller.
+
+   4.2. A reservation is confirmed for a given item.
+
+      ![image](https://github.com/AyeshPerera25/Online_Reservation_System/blob/development/Images/img_28.png?raw=true)
+
+      • This sequential diagram demonstrates the process of the system when the customer places a reservation on a selected item.
+
+      • First customer loads the listed item data from the connected server node and places a reservation request on the selected item.
+
+      • The connected server received the reservation request and redirected it to the Master node.
+
+      • The master node validates the request and creates a root Znode in the Zookeeper under the transaction ID.
+
+      • Then Master redistributes the reservation request to Slave nodes with Transaction ID.
+
+      • The slave node creates child nodes under the Root Znode using the transaction ID after receiving the request from the Master and updating their child nodes data with ‘VOTE COMMIT’ if the request is received successfully otherwise update ‘VOTE ABORT’.
+
+      • Master collects the voting data from the child node under the Transaction Znode and checks any ‘VOTE ABORT’ there. If it is available update the Root Znode data as ‘GLOBAL ABORT’ otherwise update as ‘GLOBAL COMMIT’.
+
+      • Every node gets an update from the Root Znode data change using Watchers and if the update is ‘GLOBAL COMMIT’, then process the request and update the reservation to the item and insert to the local DB otherwise discard the request.
+
+      • Finally, a response was sent from the Master to Slave then Seller.
+
+   4.3. When two customers place a reservation for the same item on the same dates at the same time.
+
+      ![image](https://github.com/AyeshPerera25/Online_Reservation_System/blob/development/Images/img_29.png?raw=true)
+
+      • This sequential diagram demonstrates the process of the system when two customers place a reservation on the same selected item in the same date.
+
+      • As demonstrated in the previous both requests get directed to the Master server by from the Slave nodes.
+
+      • Due to the synchronization on the server in service handler implementation one of the two request processing thread able to acquire the thread lock and other thread goes to the Block state. Assume request 1 processing thread gets the thread lock and continues the process.
+
+      • Request 1 gets validate and continuous the process normally as mentioned on previously according to the two-phase commit protocol.
+
+      • After the master sends the response related to request 1, the Request 2 processing thread comes to the running state and starts processing the request.
+
+      • But in the validation, it gets rejected because the system already has a reservation on the selected item on the same date.
+
+      • The Master sends the failed response related to request 2 and its passes to the Slave server to then the customer.
+
+   4.4. One node exits the system.
+
+      • When the Master node exit the system every other Slave nodes try to aqure the master lock.
+
+      • Therefore each Distributed Master Lock instance on each Slave node instances checks their child node path registered under the root Znode in the Zookeeper and sorts out the shortest child node path.
+
+      • The Distributed Master Lock instance which has the shortest child node path used to select its server instance as a Master and others become Slave servers again.
+
+      • Other Distributed Lock instances are used to save the selected Master server data to use in service request coordination.
+
+      • If the Slave node exit from the system next upcoming server is used to replace its position with the help of Etcd and Zookeeper servers. (As mentioned in section 2.5)
+   
+   4.5. One node joins the system or restarts.
+
+      • When a node joins the system it’s looking to get the next available port to join the server cluster.
+
+      • For that, its first gets the server register details from the Etcd server and check the availability on each registered port with Zookeeper Distributed Master Lock child nodes data. If it found a port which un available on Zookeeper, new server used to get start using the selected port.
+
+      • If all the port on the Etcd register is currently available according to the zookeeper, a new server is used to take the next available new port and register under the new server’s name in the Etcd server.
+
+      • Then it used to connect with the available master node in the system and sync its in- memory database with the master node.
+
+      • After getting synced with the master, the new server get available to accept the request on the server cluster.
+   
+6. Discussion.
+   
+   The online Reservation System demonstrated in this report is implemented with distributed architecture to achieve the qualities like high availability, high scalability, consistency, and reliability. With interconnected multiple server nodes at its core, the application efficiently handles client requests concurrently, avoiding the potential for any single point of failure. Throughout the system's development, we are focused to integrating the key features of the distributed system which are synchronization, consistency, communication, naming and fault tolerance.
+   
+   When establishing those key features on the system, We have used frameworks and components like gRPC, Apache Zookeeper, Etcd server, Protobuf and many other libraries.
+   
+   Also designed system get integrated with modern design techniques like Master/Slave coordination, Distributed Master Locks, and Distributed Transactions with two-phase commit.
+   
+6. Improvements.
+  
+   For further improvement of this system, we can consider the following,
+      • Design a user interface to the Seller and Customer clients.
+      • Use the proper database for the system.
+      • Introduce the microservice architecture to the system.
+      • Integrated to the Docker to simplify the system deployment and horizontal scaling.
+      • Integrate a proper login to the customer and seller
+
+
+
+
 
   
 
